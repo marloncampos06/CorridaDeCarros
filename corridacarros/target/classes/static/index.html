@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Corrida de Carros Web</title>
+    <style>
+        body {
+        font-family: monospace;
+         background:#111;
+         color:#fff;
+         text-align:center;
+          }
+
+        select, button {
+        font-size:16px;
+        margin:10px;
+         padding:5px;
+          }
+
+        .pista {
+        margin:10px 0;
+         white-space: pre;
+         font-size:24px;
+         display:flex;
+          align-items:center;
+           }
+
+        .chegada {
+        margin-right:10px;
+         color:#ff0;
+         font-weight:bold;
+          }
+
+        .carro { flex-shrink:0;
+         transition: margin-left 0.3s linear;
+         }
+
+        #mensagem {
+         margin-top:20px;
+          font-size:20px;
+          font-weight:bold;
+          }
+    </style>
+</head>
+<body>
+<h1>Corrida de Carros Web</h1>
+
+<label for="carroEscolhido">Escolha seu carro:</label>
+<select id="carroEscolhido">
+    <option value="verde">Verde 🛺</option>
+    <option value="vermelho">Vermelho 🚗</option>
+    <option value="azul">Azul 🚙</option>
+    <option value="amarelo">Amarelo 🚕</option>
+</select>
+<button id="playButton">PLAY</button>
+
+<div id="contagem"></div>
+<div id="pistas"></div>
+<div id="mensagem"></div>
+
+<script>
+    const carrosEmoji = { verde:'🛺', vermelho:'🚗', azul:'🚙', amarelo:'🚕' };
+    const comprimento = 70;
+    let corJogador;
+    let intervalo;
+
+    const pistasDiv = document.getElementById('pistas');
+    const mensagemDiv = document.getElementById('mensagem');
+    const contagemDiv = document.getElementById('contagem');
+
+    async function iniciarCorrida() {
+        corJogador = document.getElementById('carroEscolhido').value;
+        await fetch(`http://localhost:8080/api/corrida/iniciar?cor=${corJogador}`, {method:'POST'});
+        mensagemDiv.textContent='';
+        contagemDiv.textContent='';
+        criarPistas();
+        iniciarContagem();
+    }
+
+    function criarPistas() {
+        pistasDiv.innerHTML='';
+        for(const cor of Object.keys(carrosEmoji)){
+            const div = document.createElement('div');
+            div.className='pista';
+            div.id='pista_'+cor;
+
+            const chegada = document.createElement('div');
+            chegada.className='chegada';
+            chegada.textContent = '| CHEGADA |';
+            div.appendChild(chegada);
+
+            const carroDiv = document.createElement('div');
+            carroDiv.className='carro';
+            carroDiv.id='carro_'+cor;
+            carroDiv.textContent = carrosEmoji[cor];
+            carroDiv.style.marginLeft = comprimento + 'ch';
+            div.appendChild(carroDiv);
+            pistasDiv.appendChild(div);
+        }
+    }
+
+    function atualizarPistas(data){
+        for(const carro of data){
+            const carroDiv = document.getElementById('carro_'+carro.cor);
+            const pos = Math.min(carro.posicao, comprimento);
+            carroDiv.style.marginLeft = (comprimento - pos) + 'ch';
+        }
+    }
+
+    function iniciarContagem() {
+        let contador = 3;
+        const intervalCont = setInterval(()=>{
+            if(contador>0){
+                contagemDiv.textContent = contador+'...';
+                contador--;
+            }
+            else {
+                contagemDiv.textContent='GO!';
+                clearInterval(intervalCont);
+                iniciarAnimacao();
+            }
+        },1000);
+    }
+
+    function iniciarAnimacao() {
+        intervalo = setInterval(async ()=>{
+            try {
+                const resp = await fetch('http://localhost:8080/api/corrida/posicoes');
+                const data = await resp.json();
+                atualizarPistas(data);
+
+                const vencedorResp = await fetch('http://localhost:8080/api/corrida/vencedor');
+                const vencedor = await vencedorResp.text();
+
+                if(vencedor){
+                    clearInterval(intervalo);
+                    mensagemDiv.textContent='O carro '+vencedor+' venceu a corrida!';
+                    if(vencedor===corJogador){ mensagemDiv.textContent+=' Parabéns! Você venceu!'; }
+                    else { mensagemDiv.textContent+=' Mais sorte na próxima!'; }
+                }
+            } catch(e){
+                console.error('Erro ao atualizar corrida:', e);
+            }
+        },300);
+    }
+
+    document.getElementById('playButton').addEventListener('click', iniciarCorrida);
+</script>
+</body>
+</html>
